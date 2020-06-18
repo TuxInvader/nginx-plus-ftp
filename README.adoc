@@ -1,0 +1,103 @@
+= Passive FTP with NGINX
+:showtitle:
+:toc: left
+
+== Introduction
+
+NGINX Plus has been able to support Passive FTP since R18. See the https://www.nginx.com/blog/nginx-plus-r18-released[port-ranges example] in the release announcement. However this doesn't 
+allow load balancing over multiple FTP servers, because the `$server_port` variable cannot be 
+used in an upstream group. At least not up to and including NGNIX Plus R22.
+
+The solution is to use the https://nginx.org/en/docs/njs/[NJS Module] to inspect the control channel
+and populate the Key/Value store with the upstream used so that it can be referenced in the data 
+connection. The http://nginx.org/en/docs/http/ngx_http_keyval_module.html[Key/Value Store]
+is only available with https://www.nginx.com/products/nginx/[NGINX Plus] so these configs will not work
+with NGINX Open Source.
+
+== NGINX Options
+
+There are two ways to process the FTP connections, using simple "passthrough" or "inspection"
+
+* Passthrough - The connection is not inspected by NGINX - this will work for all FTP and
+FTPS connections, whether you use implicit (connect to TLS port) or explicit (connect to FTP and use
+startTLS). 
+
+* Inspection - This only works with plain FTP or implicit FTPS (ie doesn't support startTLS).
+NGINX inspects the requests and knows which ports to expect data connections on. It allows you to block 
+connections from clients to data ports which have not been negotiated on the control channel. You also have the option to log commands and file transfers.
+
+* TODO - Investigate support for startTLS on "inspected" connections. 
+
+****
+With Passthrough The FTP Server needs to know the VIP of the load balancer, and publish it in PASV
+responses. This will fail if the FTP server can't do that.
+****
+
+=== Persistence
+
+You shouldn't need to use session persistence in the `upstream` configuration, but some FTP clients will
+open multiple control connections to the server, and each of these connections could be load balanced to a
+different upstream.
+
+To avoid this we use the variable `$upstream_server` which is set to link the data connection to the 
+control channel to also apply to any additional control connections. This "persistence" will timeout
+with the entry in the key/value store. Any new connections afterwards will be load balanced normally.
+
+----
+    map $server_port $mapped_control {
+        21          vsftpd_21_backend;   # default port 21 upstream
+        990         vsftpd_990_backend;  # default port 990 upstream
+    }
+
+    map $upstream_server $mapped_server {
+      ~[0-9]+     $upstream_server:$server_port;
+      default     $mapped_control;
+    } 
+----
+
+The alternative to this is to use a IP Hash in the upstream groups.
+
+----
+    upstream vsftpd_990_backend {
+        hash $remote_addr;
+        zone vsftpd_990 64k;
+        server vsftpd:990 resolve;
+    }   
+----
+
+
+== A simple example (Passthrough)
+
+The configuration in `simple_pass_nginx.conf` can load balance FTP and both implicit and explicit FTPS
+without doing any decryption on the NGINX Plus instance. 
+
+We use a https://nginx.org/en/docs/stream/ngx_stream_js_module.html[js_filter] directive in the configuration to run the `passthrough_control_channel` function from `passive_ftp.js`.
+
+The function watches the control channel for responses from the FTP server and updates the
+`$upstream_server` variable in the key/value store. When a client connects on a data port, the variable has
+already been set by the control channel and so the data connection is sent to the same upstream server.
+
+The `keyval_zone` directive sets a timeout on the IP mapping, by default it will stay in effect for 60 seconds.
+You can change the timeout by updating the keyval_zone section of the config. The timeout should be at least as
+long as your `proxy_timeout` on the control connection.
+
+----
+keyval_zone zone=ftp_ports:128k timeout=60s;
+keyval $remote_addr $upstream_server zone=ftp_ports;
+----
+
+This is the simplest and most flexible example, but it doesn't allow for inspection of the traffic when you're using FTPS. If you want to inspect the traffic then you should use "Inspection"
+
+== A more complex example (Inspection)
+
+The configuration in `simple_inspect_nginx.conf` can be used to load balance implicit FTPS only. If you want to
+load balance plain old FTP, then remove the SSL directives from the configuration. But we all know that would be
+a terrible idea!
+
+In the "inspection" configuration we can run a more secure service. We only allow clients to connect to the FTP
+servers data port when we have seen a corresponding `PASV` response.
+
+TODO - Generate xferlog type entries for FTPS data transfers.
+
+:wq
+
