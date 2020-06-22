@@ -97,12 +97,12 @@ a terrible idea!
 In the "inspection" configuration we can run a more secure service. We only allow clients to connect to the FTP
 servers data port when we have seen a corresponding `PASV` response.
 
-The Data Channels will be logged in the access log along with the FTP (list, store, or retrieve) command which was
-used with them.
+The Data Channels will be logged in the access log along with the FTP (list, store, or retrieve) command which
+was used with them.
 
 == FTP with Source NAT (Proxy Protocol example)
 
-In cases where the FTP server is behind a gateway performing Source NAT you can tunnel the original client IP 
+In cases where the FTP server is behind a gateway performing Source NAT you can tunnel the original client IP
 through to NGINX using proxy protocol. In this example we'll cover the tweaks which need to be made to both a
 front-end and a back-end NGINX for this to work. 
 
@@ -110,8 +110,8 @@ When using proxy_protocol between multiple NGNIX instances for FTP, then you can
 inspection configuration. Although it makes sense to only use the full inspection on one of them. It shouldn't
 matter which NGINX (if any) does the full inspection.
 
-In the front-end NGINX, you use either pass-through or inspection and then enable proxy_protocol in the server block
-for example:
+In the front-end NGINX, you can use either pass-through or inspection and then enable proxy_protocol in the
+server block. The passthrough example would look like this:
 
 ----
     # FTP Service listening on port 21
@@ -124,7 +124,7 @@ for example:
     }
 ----
 
-On the backend NGINX instance, you would enable proxy_protocol on the `listen` directive.
+On the backend NGINX instance, you would enable proxy_protocol on the `listen` directive like this:
 
 ----
     # FTP Service listening on port 21
@@ -136,9 +136,11 @@ On the backend NGINX instance, you would enable proxy_protocol on the `listen` d
     }
 ----
 
-The other change you need to make on the backend NGINX is to replace `$remote_addr` with `$proxy_protocol_addr` and
-the `$remote_port` with `$proxy_protocol_port` in the logs and the variable mappings
+The other change you need to make on the backend NGINX is to replace `$remote_addr` with `$proxy_protocol_addr`
+and the `$remote_port` with `$proxy_protocol_port` in the logs and the variable mappings. See below for both
+passthrough and inspection examples:
 
+.passthrough log
 ----
     log_format basic 'FTP: $server_addr $server_port $remote_addr [ $time_local ] '
                  '( $proxy_protocol_addr -> $upstream_server ) '
@@ -147,12 +149,20 @@ the `$remote_port` with `$proxy_protocol_port` in the logs and the variable mapp
 
 ----
 
-Variable changes for pass-through.
+.inspection log
+----
+    log_format basic 'FTP: $server_addr $server_port $remote_addr [ $time_local ] '
+                 '( $proxy_protocol_addr -> $mapped_server ) "$data_xfer" '
+                 '$protocol $status $bytes_sent $bytes_received '
+                 '$session_time';
+----
+
+.pass-through keyvals
 ----
     keyval $proxy_protocol_addr $upstream_server zone=ftp_ports;
 ----
 
-Variable changes for inspection.
+.inspection keyvals
 ----
     keyval "$proxy_protocol_addr:$proxy_protocol_port" $data_port zone=ftp_ports;
     keyval "$proxy_protocol_addr:$data_port" $upstream_socket zone=ftp_ports;
