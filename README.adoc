@@ -68,7 +68,7 @@ The alternative to this is to use a IP Hash in the upstream groups.
 
 == A simple example (Passthrough)
 
-The configuration in `simple_pass_nginx.conf` can load balance FTP and both implicit and explicit FTPS
+The configuration in `passive_passthrough_nginx.conf` can load balance FTP and both implicit and explicit FTPS
 without doing any decryption on the NGINX Plus instance. 
 
 We use a https://nginx.org/en/docs/stream/ngx_stream_js_module.html[js_filter] directive in the configuration to run the `passthrough_control_channel` function from `passive_ftp.js`.
@@ -90,7 +90,7 @@ This is the simplest and most flexible example, but it doesn't allow for inspect
 
 == A more complex example (Inspection)
 
-The configuration in `simple_inspect_nginx.conf` can be used to load balance implicit FTPS only. If you want to
+The configuration in `passive_inspect_nginx.conf` can be used to load balance implicit FTPS only. If you want to
 load balance plain old FTP, then remove the SSL directives from the configuration. But we all know that would be
 a terrible idea!
 
