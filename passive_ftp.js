@@ -9,12 +9,20 @@ function monitor_control_channel(s) {
   // Debug (set 1 to enable)
   var debug_level = 1
 
-  // We need not process incoming commands - Debugging
+  // This var will be set to the LIST, STOR, or RETR command and printed
+  // in the access log for each data connection.
+  var xfer = ""
 
   s.on("upload", function(data, flags) {
     var msg = data.toString()
     if ( msg.startsWith("PASS") ) {
       msg = "PASS ************"
+    } else if ( msg.startsWith("STOR") ) {
+      xfer = msg.trim();
+    } else if ( msg.startsWith("RETR") ) {
+      xfer = msg.trim();
+    } else if ( msg.startsWith("LIST") ) {
+      xfer = msg.trim();
     }
     ftp_debug(s, debug_level, "command:  " + msg );
     s.send(data);
@@ -31,7 +39,7 @@ function monitor_control_channel(s) {
 
       var pasv = data.match(/.*\(([0-9]+,[0-9]+,[0-9]+,[0-9]+),([0-9]+),([0-9]+)\).*/)
       var port = ( pasv[2] * 256 ) + (pasv[3] * 1)
-      var upstream = s.variables.upstream_addr.split(',').slice(-1)[0].split(':').slice(0)[0]
+      var upstream = s.variables.upstream_addr.split(',').slice(-1)[0].split(':').slice(0)[0].trim()
       var server
       var local
 
@@ -53,6 +61,8 @@ function monitor_control_channel(s) {
       s.variables.upstream_socket = upstream + ":" + port;
       s.variables.upstream_server = upstream;
       ftp_debug(s, debug_level,  "Sending: " + data )
+    } else if ( data.startsWith("150") ) {
+      s.variables.xfer = xfer;
     }
     s.send(data);
   } );
@@ -64,7 +74,7 @@ function passthrough_control_channel(s) {
   // We're not decrypting, update the k/v store when a control channel
   // response is sent
   s.on("download", function(data, flags) {
-      var server = s.variables.upstream_addr.split(',').pop().split(':')[0];
+      var server = s.variables.upstream_addr.split(',').pop().split(':')[0].trim();
       s.variables.upstream_server = server;
       s.send(data);
   });
