@@ -55,7 +55,7 @@ with the entry in the key/value store. Any new connections afterwards will be lo
     } 
 ----
 
-The alternative to this is to use a IP Hash in the upstream groups.
+The alternative to this is to use an IP Hash in the upstream groups.
 
 ----
     upstream vsftpd_990_backend {
