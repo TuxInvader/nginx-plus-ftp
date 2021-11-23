@@ -100,6 +100,14 @@ servers data port when we have seen a corresponding `PASV` response.
 The Data Channels will be logged in the access log along with the FTP (list, store, or retrieve) command which
 was used with them.
 
+FTPS clients often require or atleast strongly suggest the use of session resumption between control and data channels.
+The configuration examples enable this through `ssl_session_tickets`, but in order for the control and data server contexts to
+share tickets you will need to provide a random key file with `ssl_session_ticket_key`. You can create one using openssl:
+
+----
+$ openssl rand 80 > /etc/nginx/ticket.key
+----
+
 == FTP with Source NAT (Proxy Protocol example)
 
 In cases where the FTP server is behind a gateway performing Source NAT you can tunnel the original client IP
@@ -109,6 +117,8 @@ front-end and a back-end NGINX for this to work.
 When using proxy_protocol between multiple NGNIX instances for FTP, then you can use either pass-through or
 inspection configuration. Although it makes sense to only use the full inspection on one of them. It shouldn't
 matter which NGINX (if any) does the full inspection.
+
+See configuration in `passive_inspect_pp_nginx.conf` for an inspection Proxy Protocol example.
 
 In the front-end NGINX, you can use either pass-through or inspection and then enable proxy_protocol in the
 server block. The passthrough example would look like this:
